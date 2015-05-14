@@ -1,3 +1,5 @@
+# Copyright (c) 2015 darkf. Licensed under the terms of the MIT license
+
 import operator, dis, sys
 
 def compile_file(path):
