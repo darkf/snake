@@ -20,7 +20,7 @@ class Return(BaseException):
 	def __init__(self, retval):
 		self.retval = retval
 
-def log(*args): pass # print(*args)
+def log(*args): print(*args)
 
 # to store the interpreter context as a closure for functions
 def interpreter():
@@ -85,6 +85,8 @@ def interpreter():
 				elif ins.opname == 'BINARY_MODULO': rhs = pop(); push(pop() % rhs)
 				elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
 				elif ins.opname == 'STORE_SUBSCR': i = pop(); lhs = pop(); lhs[i] = pop()
+				elif ins.opname == 'BUILD_TUPLE':
+					push(tuple(reversed([pop() for _ in range(ins.argval)])))
 				elif ins.opname == 'BUILD_LIST':
 					push(list(reversed([pop() for _ in range(ins.argval)])))
 				elif ins.opname == 'BUILD_SLICE':
