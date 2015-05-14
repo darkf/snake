@@ -20,6 +20,8 @@ class Return(BaseException):
 	def __init__(self, retval):
 		self.retval = retval
 
+def log(*args): print(*args)
+
 # to store the interpreter context as a closure for functions
 def interpreter():
 	env = {}
@@ -52,7 +54,7 @@ def interpreter():
 					positional = argc & 0xFF
 					args = [pop() for _ in range(positional)]
 					args.reverse()
-					print("args:", args)
+					log("args:", args)
 					f = pop()
 					push(f(*args))
 				elif ins.opname == 'MAKE_FUNCTION':
@@ -61,7 +63,7 @@ def interpreter():
 					name = pop()
 					code = pop()
 					default_args = [pop() for _ in range(positional)]
-					print("make function:", name, positional, code)
+					log("make function:", name, positional, code)
 					push(Function(name, positional, code, interpret))
 				elif ins.opname == 'POP_TOP': pop()
 				elif ins.opname == 'RETURN_VALUE': raise Return(pop())
@@ -69,7 +71,10 @@ def interpreter():
 					opname = ins.argrepr
 					rhs = pop()
 					lhs = pop()
-					push({'<': operator.lt, '>': operator.gt, '==': operator.eq}[opname](lhs, rhs))
+					push({'<': operator.lt, '>': operator.gt,
+						  '==': operator.eq, '!=': operator.ne,
+						  '<=': operator.le, '>=': operator.ge}[opname](lhs, rhs))
+				elif ins.opname == 'UNARY_NOT': push(not pop())
 				elif ins.opname == 'INPLACE_MULTIPLY': rhs = pop(); push(operator.imul(pop(), rhs))
 				elif ins.opname == 'INPLACE_SUBTRACT': rhs = pop(); push(operator.isub(pop(), rhs))
 				elif ins.opname == 'INPLACE_ADD': rhs = pop(); push(operator.iadd(pop(), rhs))
@@ -78,6 +83,7 @@ def interpreter():
 				elif ins.opname == 'BINARY_MULTIPLY': rhs = pop(); push(pop() * rhs)
 				elif ins.opname == 'BINARY_MODULO': rhs = pop(); push(pop() % rhs)
 				elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
+				elif ins.opname == 'STORE_SUBSCR': i = pop(); lhs = pop(); lhs[i] = pop()
 				elif ins.opname == 'BUILD_LIST':
 					push(list(reversed([pop() for _ in range(ins.argval)])))
 				elif ins.opname == 'BUILD_SLICE':
@@ -91,13 +97,16 @@ def interpreter():
 					block_stack.append((ip, indices[ins.argval]))
 				elif ins.opname == 'POP_BLOCK': block_stack.pop()
 				elif ins.opname == 'JUMP_ABSOLUTE':
-					print("jmp to {0} ({1})".format(ins.argval, indices[ins.argval]))
+					log("jmp to {0} ({1})".format(ins.argval, indices[ins.argval]))
+					ip = indices[ins.argval]
+				elif ins.opname == 'JUMP_FORWARD':
+					log("jmp forward to {0} ({1})".format(ins.argval, indices[ins.argval]))
 					ip = indices[ins.argval]
 				elif ins.opname == 'POP_JUMP_IF_FALSE':
-					print("jmpf to {0} ({1})".format(ins.argval, indices[ins.argval]))
+					log("jmpf to {0} ({1})".format(ins.argval, indices[ins.argval]))
 					if not pop(): ip = indices[ins.argval]
 				elif ins.opname == 'POP_JUMP_IF_TRUE':
-					print("jmpt to {0} ({1})".format(ins.argval, indices[ins.argval]))
+					log("jmpt to {0} ({1})".format(ins.argval, indices[ins.argval]))
 					if pop(): ip = indices[ins.argval]
 				elif ins.opname == 'GET_ITER': push(iter(pop()))
 				elif ins.opname == 'FOR_ITER':
@@ -137,8 +146,8 @@ def bytecode_to_list(bytecode):
 def interpret_code(code, *, interpreter=interpreter(), xenv=None):
 	"Interprets a code object"
 	bytecode = dis.Bytecode(code)
-	print("code disassembly:")
-	print(bytecode.dis())
+	log("code disassembly:")
+	log(bytecode.dis())
 	return interpreter(*bytecode_to_list(bytecode), xenv=xenv)
 
 if __name__ == "__main__":
