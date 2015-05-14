@@ -22,7 +22,7 @@ class Return(BaseException):
 def interpret(code, indices, *, xenv=None):
 	stack = []
 	ip = 0
-	env = {'print': print}
+	env = {'print': print, 'sum': sum}
 	if xenv: env.update(xenv)
 
 	def push(x): stack.append(x)
@@ -57,6 +57,15 @@ def interpret(code, indices, *, xenv=None):
 		elif ins.opname == 'POP_TOP': pop()
 		elif ins.opname == 'RETURN_VALUE': raise Return(pop())
 		elif ins.opname == 'BINARY_ADD': push(pop() + pop())
+		elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
+		elif ins.opname == 'BUILD_LIST':
+			push(list(reversed([pop() for _ in range(ins.argval)])))
+		elif ins.opname == 'BUILD_SLICE':
+			argc = ins.argval
+			if argc == 2: # x[i:]
+				i = pop(); push(slice(pop(), i))
+			elif argc == 3: # x[i:j]
+				j = pop(); i = pop(); push(slice(pop(), i, j))
 		else:
 			raise NotImplementedError("instruction: " + repr(ins))
 
@@ -91,15 +100,3 @@ def interpret_code(code, *, xenv=None):
 	return interpret(*bytecode_to_list(bytecode), xenv=xenv)
 
 interpret_code(compile_file("testmod.py"))
-
-"""
-bytecode = dis.Bytecode(compile_file("testmod.py"))
-
-print("disassembly:")
-print(bytecode.dis())
-
-#for ins in bytecode:
-#	print(ins.opname, ins.argval)
-
-interpret(*bytecode_to_list(bytecode))
-"""
