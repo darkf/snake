@@ -20,7 +20,7 @@ class Return(BaseException):
 	def __init__(self, retval):
 		self.retval = retval
 
-def log(*args): print(*args)
+def log(*args): pass #print(*args)
 
 # to store the interpreter context as a closure for functions
 def interpreter():
@@ -31,8 +31,9 @@ def interpreter():
 			nonlocal env
 			stack = []
 			block_stack = []
+			localenv = {}
 			ip = 0
-			if xenv: env.update(xenv)
+			if xenv: localenv.update(xenv)
 
 			def offsetof(index): return {v:k for k,v in indices.items()}[index]
 
@@ -46,8 +47,8 @@ def interpreter():
 				elif ins.opname == 'LOAD_NAME': push(env[ins.argval]) # TODO: envs
 				elif ins.opname == 'STORE_NAME': env[ins.argval] = pop()
 				elif ins.opname == 'LOAD_GLOBAL': push(env[ins.argval]) # TODO: global env
-				elif ins.opname == 'LOAD_FAST': push(env[ins.argval]) # TODO: locals
-				elif ins.opname == 'STORE_FAST': env[ins.argval] = pop() # TODO: locals
+				elif ins.opname == 'LOAD_FAST': push(localenv[ins.argval]) # TODO: locals
+				elif ins.opname == 'STORE_FAST': localenv[ins.argval] = pop() # TODO: locals
 				elif ins.opname == 'LOAD_ATTR': push(getattr(pop(), ins.argval))
 				elif ins.opname == 'CALL_FUNCTION':
 					# TODO: handle more than just positional arguments
