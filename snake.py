@@ -23,15 +23,16 @@ class Return(BaseException):
 
 # to store the interpreter context as a closure for functions
 def interpreter():
-	env = {'print': print, 'sum': sum}
+	env = {'print': print, 'sum': sum, 'range': range}
 
 	def interpret(code, indices, *, xenv=None):
 			nonlocal env
 			stack = []
 			block_stack = []
 			ip = 0
-			
 			if xenv: env.update(xenv)
+
+			def offsetof(index): return {v:k for k,v in indices.items()}[index]
 
 			def push(x): stack.append(x)
 			def pop(): return stack.pop()
@@ -71,6 +72,7 @@ def interpreter():
 					push({'<': operator.lt, '>': operator.gt, '==': operator.eq}[opname](lhs, rhs))
 				elif ins.opname == 'INPLACE_MULTIPLY': rhs = pop(); push(operator.imul(pop(), rhs))
 				elif ins.opname == 'INPLACE_SUBTRACT': rhs = pop(); push(operator.isub(pop(), rhs))
+				elif ins.opname == 'INPLACE_ADD': rhs = pop(); push(operator.iadd(pop(), rhs))
 				elif ins.opname == 'BINARY_ADD': push(pop() + pop())
 				elif ins.opname == 'BINARY_SUBTRACT': rhs = pop(); push(pop() - rhs)
 				elif ins.opname == 'BINARY_MULTIPLY': rhs = pop(); push(pop() * rhs)
@@ -84,7 +86,8 @@ def interpreter():
 					elif argc == 3: # x[i:j]
 						j = pop(); i = pop(); push(slice(pop(), i, j))
 				elif ins.opname == 'SETUP_LOOP':
-					block_stack.append((indices[ip], indices[ins.argval]))
+					# (start, end) indices
+					block_stack.append((ip, indices[ins.argval]))
 				elif ins.opname == 'POP_BLOCK': block_stack.pop()
 				elif ins.opname == 'JUMP_ABSOLUTE':
 					print("jmp to {0} ({1})".format(ins.argval, indices[ins.argval]))
@@ -95,6 +98,13 @@ def interpreter():
 				elif ins.opname == 'POP_JUMP_IF_TRUE':
 					print("jmpt to {0} ({1})".format(ins.argval, indices[ins.argval]))
 					if pop(): ip = indices[ins.argval]
+				elif ins.opname == 'GET_ITER': push(iter(pop()))
+				elif ins.opname == 'FOR_ITER':
+					iterator = stack[-1]
+					try: push(next(iterator))
+					except StopIteration:
+						pop()
+						ip = indices[ins.argval]
 				else:
 					raise NotImplementedError("instruction: " + repr(ins))
 
@@ -130,4 +140,5 @@ def interpret_code(code, *, interpreter=interpreter(), xenv=None):
 	print(bytecode.dis())
 	return interpreter(*bytecode_to_list(bytecode), xenv=xenv)
 
-interpret_code(compile_file("fac.py"))
+if __name__ == "__main__":
+	interpret_code(compile_file("iter.py"))
