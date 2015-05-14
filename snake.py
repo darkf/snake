@@ -1,3 +1,4 @@
+import operator
 import dis
 
 def compile_file(path):
@@ -5,80 +6,110 @@ def compile_file(path):
 		return compile(f.read(), path, "exec")
 
 class Function:
-	def __init__(self, name, positional, code):
+	def __init__(self, name, positional, code, interpreter):
 		self.__name__ = name
 		self.__positional = positional
 		self.__code = code
+		self.__interpreter = interpreter
 
 	def __call__(self, *args, **kwargs):
 		locals = self.__code.co_varnames
 		xenv = {k:v for k,v in zip(locals, args)}
-		return interpret_code(self.__code, xenv=xenv)
+		return interpret_code(self.__code, interpreter=self.__interpreter, xenv=xenv)
 
 class Return(BaseException):
 	def __init__(self, retval):
 		self.retval = retval
 
-def interpret(code, indices, *, xenv=None):
-	stack = []
-	ip = 0
+# to store the interpreter context as a closure for functions
+def interpreter():
 	env = {'print': print, 'sum': sum}
-	if xenv: env.update(xenv)
 
-	def push(x): stack.append(x)
-	def pop(): return stack.pop()
+	def interpret(code, indices, *, xenv=None):
+			nonlocal env
+			stack = []
+			block_stack = []
+			ip = 0
+			
+			if xenv: env.update(xenv)
 
-	def interp(ins):
-		nonlocal ip, env, stack
+			def push(x): stack.append(x)
+			def pop(): return stack.pop()
 
-		if ins.opname == 'LOAD_CONST': stack.append(ins.argval)
-		elif ins.opname == 'LOAD_NAME': stack.append(env[ins.argval]) # TODO: envs
-		elif ins.opname == 'STORE_NAME': env[ins.argval] = pop()
-		elif ins.opname == 'LOAD_GLOBAL': stack.append(env[ins.argval]) # TODO: global env
-		elif ins.opname == 'LOAD_FAST': stack.append(env[ins.argval]) # TODO: locals
-		elif ins.opname == 'CALL_FUNCTION':
-			# TODO: handle more than just positional arguments
-			argc = ins.argval
-			positional = argc & 0xFF
-			args = [pop() for _ in range(positional)] # stack[-positional:]
-			args.reverse()
-			#stack = stack[:-positional]
-			print("args:", args)
-			f = pop()
-			push(f(*args))
-		elif ins.opname == 'MAKE_FUNCTION':
-			argc = ins.argval
-			positional = argc & 0xFF
-			name = pop()
-			code = pop()
-			default_args = [pop() for _ in range(positional)]
-			print("make function:", name, positional, code)
-			push(Function(name, positional, code))
-		elif ins.opname == 'POP_TOP': pop()
-		elif ins.opname == 'RETURN_VALUE': raise Return(pop())
-		elif ins.opname == 'BINARY_ADD': push(pop() + pop())
-		elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
-		elif ins.opname == 'BUILD_LIST':
-			push(list(reversed([pop() for _ in range(ins.argval)])))
-		elif ins.opname == 'BUILD_SLICE':
-			argc = ins.argval
-			if argc == 2: # x[i:]
-				i = pop(); push(slice(pop(), i))
-			elif argc == 3: # x[i:j]
-				j = pop(); i = pop(); push(slice(pop(), i, j))
-		else:
-			raise NotImplementedError("instruction: " + repr(ins))
+			def interp(ins):
+				nonlocal stack, block_stack, ip, env
+
+				if ins.opname == 'LOAD_CONST': stack.append(ins.argval)
+				elif ins.opname == 'LOAD_NAME': stack.append(env[ins.argval]) # TODO: envs
+				elif ins.opname == 'STORE_NAME': env[ins.argval] = pop()
+				elif ins.opname == 'LOAD_GLOBAL': stack.append(env[ins.argval]) # TODO: global env
+				elif ins.opname == 'LOAD_FAST': stack.append(env[ins.argval]) # TODO: locals
+				elif ins.opname == 'STORE_FAST': env[ins.argval] = pop() # TODO: locals
+				elif ins.opname == 'CALL_FUNCTION':
+					# TODO: handle more than just positional arguments
+					argc = ins.argval
+					positional = argc & 0xFF
+					args = [pop() for _ in range(positional)]
+					args.reverse()
+					print("args:", args)
+					f = pop()
+					push(f(*args))
+				elif ins.opname == 'MAKE_FUNCTION':
+					argc = ins.argval
+					positional = argc & 0xFF
+					name = pop()
+					code = pop()
+					default_args = [pop() for _ in range(positional)]
+					print("make function:", name, positional, code)
+					push(Function(name, positional, code, interpret))
+				elif ins.opname == 'POP_TOP': pop()
+				elif ins.opname == 'RETURN_VALUE': raise Return(pop())
+				elif ins.opname == 'COMPARE_OP':
+					opname = ins.argrepr
+					rhs = pop()
+					lhs = pop()
+					push({'<': operator.lt, '>': operator.gt, '==': operator.eq}[opname](lhs, rhs))
+				elif ins.opname == 'INPLACE_MULTIPLY': rhs = pop(); push(operator.imul(pop(), rhs))
+				elif ins.opname == 'INPLACE_SUBTRACT': rhs = pop(); push(operator.isub(pop(), rhs))
+				elif ins.opname == 'BINARY_ADD': push(pop() + pop())
+				elif ins.opname == 'BINARY_SUBTRACT': rhs = pop(); push(pop() - rhs)
+				elif ins.opname == 'BINARY_MULTIPLY': rhs = pop(); push(pop() * rhs)
+				elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
+				elif ins.opname == 'BUILD_LIST':
+					push(list(reversed([pop() for _ in range(ins.argval)])))
+				elif ins.opname == 'BUILD_SLICE':
+					argc = ins.argval
+					if argc == 2: # x[i:]
+						i = pop(); push(slice(pop(), i))
+					elif argc == 3: # x[i:j]
+						j = pop(); i = pop(); push(slice(pop(), i, j))
+				elif ins.opname == 'SETUP_LOOP':
+					block_stack.append((indices[ip], indices[ins.argval]))
+				elif ins.opname == 'POP_BLOCK': block_stack.pop()
+				elif ins.opname == 'JUMP_ABSOLUTE':
+					print("jmp to {0} ({1})".format(ins.argval, indices[ins.argval]))
+					ip = indices[ins.argval]
+				elif ins.opname == 'POP_JUMP_IF_FALSE':
+					print("jmpf to {0} ({1})".format(ins.argval, indices[ins.argval]))
+					if not pop(): ip = indices[ins.argval]
+				elif ins.opname == 'POP_JUMP_IF_TRUE':
+					print("jmpt to {0} ({1})".format(ins.argval, indices[ins.argval]))
+					if pop(): ip = indices[ins.argval]
+				else:
+					raise NotImplementedError("instruction: " + repr(ins))
 
 
-	while ip < len(code):
-		# fetch ins
-		ins = code[ip]
-		ip += 1
+			while ip < len(code):
+				# fetch ins
+				ins = code[ip]
+				ip += 1
 
-		try:
-			interp(ins)
-		except Return as e:
-			return e.retval
+				try:
+					interp(ins)
+				except Return as e:
+					return e.retval
+
+	return interpret
 
 def bytecode_to_list(bytecode):
 	"Convert dis.Bytecode instructions into a flat list and a map of offsets to indices"
@@ -92,11 +123,11 @@ def bytecode_to_list(bytecode):
 
 	return instructions, offset_indices
 
-def interpret_code(code, *, xenv=None):
+def interpret_code(code, *, interpreter=interpreter(), xenv=None):
 	"Interprets a code object"
 	bytecode = dis.Bytecode(code)
 	print("code disassembly:")
 	print(bytecode.dis())
-	return interpret(*bytecode_to_list(bytecode), xenv=xenv)
+	return interpreter(*bytecode_to_list(bytecode), xenv=xenv)
 
-interpret_code(compile_file("testmod.py"))
+interpret_code(compile_file("fac.py"))

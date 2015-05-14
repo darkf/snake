@@ -1,10 +1,7 @@
-
-"""
-def fact(n):
+def rfact(n):
 	if n == 1 or n == 0:
-		return 0
-	return n * fact(n - 1)
-"""
+		return 1
+	return n * rfact(n - 1)
 
 def fact(n):
 	prod = 1
@@ -16,3 +13,4 @@ def fact(n):
 	return prod
 
 print("10! is", fact(10))
+print("10! recursively is", rfact(10))
