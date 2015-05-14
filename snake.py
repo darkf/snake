@@ -20,7 +20,7 @@ class Return(BaseException):
 	def __init__(self, retval):
 		self.retval = retval
 
-def log(*args): pass #print(*args)
+def log(*args): print(*args)
 
 # to store the interpreter context as a closure for functions
 def interpreter():
@@ -86,6 +86,11 @@ def interpreter():
 				elif ins.opname == 'BINARY_MODULO': rhs = pop(); push(pop() % rhs)
 				elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
 				elif ins.opname == 'STORE_SUBSCR': i = pop(); lhs = pop(); lhs[i] = pop()
+				elif ins.opname == 'STORE_MAP': k = pop(); v = pop(); stack[-1][k] = v
+				elif ins.opname == 'UNPACK_SEQUENCE': stack.extend([x for x in reversed(pop())])
+				elif ins.opname == 'LIST_APPEND': v = pop(); stack[-ins.argval].append(v)
+				elif ins.opname == 'MAP_ADD': k = pop(); d = stack[-ins.argval-1]; d[k] = pop()
+				elif ins.opname == 'BUILD_MAP': push({})
 				elif ins.opname == 'BUILD_TUPLE':
 					push(tuple(reversed([pop() for _ in range(ins.argval)])))
 				elif ins.opname == 'BUILD_LIST':
