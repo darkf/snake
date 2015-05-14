@@ -1,5 +1,4 @@
-import operator
-import dis
+import operator, dis, sys
 
 def compile_file(path):
 	with open(path, "r") as f:
@@ -23,7 +22,8 @@ class Return(BaseException):
 
 # to store the interpreter context as a closure for functions
 def interpreter():
-	env = {'print': print, 'sum': sum, 'range': range}
+	env = {}
+	env.update(__builtins__.__dict__) # add python builtins
 
 	def interpret(code, indices, *, xenv=None):
 			nonlocal env
@@ -76,6 +76,7 @@ def interpreter():
 				elif ins.opname == 'BINARY_ADD': push(pop() + pop())
 				elif ins.opname == 'BINARY_SUBTRACT': rhs = pop(); push(pop() - rhs)
 				elif ins.opname == 'BINARY_MULTIPLY': rhs = pop(); push(pop() * rhs)
+				elif ins.opname == 'BINARY_MODULO': rhs = pop(); push(pop() % rhs)
 				elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
 				elif ins.opname == 'BUILD_LIST':
 					push(list(reversed([pop() for _ in range(ins.argval)])))
@@ -141,4 +142,4 @@ def interpret_code(code, *, interpreter=interpreter(), xenv=None):
 	return interpreter(*bytecode_to_list(bytecode), xenv=xenv)
 
 if __name__ == "__main__":
-	interpret_code(compile_file("iter.py"))
+	interpret_code(compile_file(sys.argv[1]))
