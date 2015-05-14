@@ -44,12 +44,14 @@ def interpreter():
 				nonlocal stack, block_stack, ip, env
 
 				if ins.opname == 'LOAD_CONST': push(ins.argval)
-				elif ins.opname == 'LOAD_NAME': push(env[ins.argval]) # TODO: envs
+				elif ins.opname == 'LOAD_NAME': push(env[ins.argval]) # TODO: use locals or global
 				elif ins.opname == 'STORE_NAME': env[ins.argval] = pop()
+				elif ins.opname == 'DELETE_NAME': del env[ins.argval]
 				elif ins.opname == 'LOAD_GLOBAL': push(env[ins.argval]) # TODO: global env
-				elif ins.opname == 'LOAD_FAST': push(localenv[ins.argval]) # TODO: locals
-				elif ins.opname == 'STORE_FAST': localenv[ins.argval] = pop() # TODO: locals
+				elif ins.opname == 'LOAD_FAST': push(localenv[ins.argval])
+				elif ins.opname == 'STORE_FAST': localenv[ins.argval] = pop()
 				elif ins.opname == 'LOAD_ATTR': push(getattr(pop(), ins.argval))
+				elif ins.opname == 'STORE_ATTR': setattr(pop(), ins.argval, pop())
 				elif ins.opname == 'CALL_FUNCTION':
 					# TODO: handle more than just positional arguments
 					argc = ins.argval
@@ -68,6 +70,7 @@ def interpreter():
 					log("make function:", name, positional, code)
 					push(Function(name, positional, code, interpret))
 				elif ins.opname == 'POP_TOP': pop()
+				elif ins.opname == 'DUP_TOP': push(stack[-1])
 				elif ins.opname == 'RETURN_VALUE': raise Return(pop())
 				elif ins.opname == 'COMPARE_OP':
 					opname = ins.argrepr
@@ -84,6 +87,8 @@ def interpreter():
 				elif ins.opname == 'BINARY_SUBTRACT': rhs = pop(); push(pop() - rhs)
 				elif ins.opname == 'BINARY_MULTIPLY': rhs = pop(); push(pop() * rhs)
 				elif ins.opname == 'BINARY_MODULO': rhs = pop(); push(pop() % rhs)
+				elif ins.opname == 'BINARY_TRUE_DIVIDE': rhs = pop(); push(pop() / rhs)
+				elif ins.opname == 'BINARY_OR': rhs = pop(); push(pop() or rhs)
 				elif ins.opname == 'BINARY_SUBSCR': i = pop(); push(pop()[i])
 				elif ins.opname == 'STORE_SUBSCR': i = pop(); lhs = pop(); lhs[i] = pop()
 				elif ins.opname == 'STORE_MAP': k = pop(); v = pop(); stack[-1][k] = v
